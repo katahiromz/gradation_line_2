@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gradation_line_2</title>
+</head>
+<body>
+    <h1>グラデーション ライン 2</h1>
+
+    <canvas id="my-canvas" width="300" height="300"></canvas>
+
+    <form>
+        <label for="my-radio-0">
+            <input type="radio" id="my-radio-0" name="my-radio" value="normal"> ノーマル
+        </label>
+        <label for="my-radio-1">
+            <input type="radio" id="my-radio-1" name="my-radio" value="polygon" checked> グラデーション
+        </label>
+    </form>
+
+    <script>
+        let canvas = document.getElementById('my-canvas');
+        let radios = document.getElementsByName('my-radio');
+        let ctx = canvas.getContext('2d', { alpha: false });
+        let anime = null; // アニメーション
+        let time = (new Date()).getTime(); // 処理フレームの時刻。
+
+        /**
+         * 指定された2点間に線分を描画する。
+         * この関数は、描画スタイル（色や太さ）の設定は行わず、パスの定義と実行のみを行う。
+         * @param {CanvasRenderingContext2D} ctx - 描画に使用するCanvas 2Dコンテキスト。
+         * @param {number} x0 - 始点 (P0) のX座標。
+         * @param {number} y0 - 始点 (P0) のY座標。
+         * @param {number} x1 - 終点 (P1) のX座標。
+         * @param {number} y1 - 終点 (P1) のY座標。
+         * @param {string} [color=ctx.strokeStyle] 色
+         */
+        const drawLine = (ctx, x0, y0, x1, y1, color = ctx.strokeStyle) => {
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.strokeStyle = color;
+            ctx.stroke();
+        };
+
+        /**
+         * 2点間に幅を持った線（矩形ポリゴン）を描画し、その幅に対して垂直方向のグラデーションを適用する。
+         * これにより、線の中心が最も濃く、端に向かって色が薄くなる（または透明になる）視覚効果が得られる。
+         * @param {CanvasRenderingContext2D} ctx - 描画に使用するCanvas 2Dコンテキスト。
+         * @param {number} x0 - 始点 (P0) のX座標。
+         * @param {number} y0 - 始点 (P0) のY座標。
+         * @param {number} x1 - 終点 (P1) のX座標。
+         * @param {number} y1 - 終点 (P1) のY座標。
+         * @param {string} [centerColor=ctx.strokeStyle] - 線の中心に適用する色。指定がない場合は現在の strokeStyle を使用。
+         * @param {string} [edgeColor='rgba(0, 0, 0, 0%)'] - 線の両端（エッジ）に適用する色（通常は透明）。
+         */
+        const drawLineWithGradation = (ctx, x0, y0, x1, y1, centerColor = ctx.strokeStyle, edgeColor = 'rgba(0, 0, 0, 0%)') => {
+            const halfWidth = ctx.lineWidth / 2; // 半分の幅
+            // 1. 方向ベクトルの計算
+            const dx = x1 - x0, dy = y1 - y0;
+            // 2. 法線ベクトルの計算 (時計回りに90度回転)
+            const nx = dy, ny = -dx;
+            // 法線ベクトルを正規化（長さ1にする）
+            const len = Math.sqrt(nx * nx + ny * ny);
+            const normX = nx / len, normY = ny / len;
+            // 3. 矩形の4つの頂点を計算
+            // 始点P1から法線方向に +/- halfWidth オフセット
+            const p0x = x0 + normX * halfWidth;
+            const p0y = y0 + normY * halfWidth;
+            const p1x = x0 - normX * halfWidth;
+            const p1y = y0 - normY * halfWidth;
+            // 終点P2から法線方向に +/- halfWidth オフセット
+            const p2x = x1 - normX * halfWidth;
+            const p2y = y1 - normY * halfWidth;
+            const p3x = x1 + normX * halfWidth;
+            const p3y = y1 + normY * halfWidth;
+            // 4. 頂点を結んで多角形を作成
+            ctx.beginPath();
+            ctx.moveTo(p0x, p0y);
+            ctx.lineTo(p1x, p1y);
+            ctx.lineTo(p2x, p2y);
+            ctx.lineTo(p3x, p3y);
+            ctx.closePath();
+            // 5. グラデーションの作成
+            // 線の端（グラデーションの開始点と終了点）
+            // 線の中心から法線ベクトルの方向に halfWidth 分オフセットした点
+            const gradStartPointX = x0 - normX * halfWidth;
+            const gradStartPointY = y0 - normY * halfWidth;
+            const gradEndPointX = x0 + normX * halfWidth;
+            const gradEndPointY = y0 + normY * halfWidth;
+            const gradient = ctx.createLinearGradient(
+                gradStartPointX, gradStartPointY,
+                gradEndPointX, gradEndPointY);
+            // 中心 (40%～60%)
+            gradient.addColorStop(0.4, centerColor);
+            gradient.addColorStop(0.6, centerColor);
+            // 端 (0% と 100%)
+            gradient.addColorStop(0.0, edgeColor);
+            gradient.addColorStop(1.0, edgeColor);
+            // 5. 塗りつぶし
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        };
+
+        // 円を描画する。
+        const drawCircle = (ctx, x0, y0, r0, color = ctx.strokeStyle) => {
+            ctx.beginPath();
+            ctx.arc(x0, y0, r0, 0, 2 * Math.PI, false);
+            ctx.fillStyle = color;
+            ctx.fill();
+        };
+
+        // グラデーション付きで円を描画する。
+        const drawCircleWithGradation = (ctx, x0, y0, r0, centerColor = ctx.strokeStyle, edgeColor = 'rgba(0, 0, 0, 0%)') => {
+            let gradient = ctx.createRadialGradient(x0, y0, 0, x0, y0, r0);
+            // 中心 (0%～20%)
+            gradient.addColorStop(0, centerColor);
+            gradient.addColorStop(0.2, centerColor);
+            // 端 (100%)
+            gradient.addColorStop(1.0, edgeColor);
+
+            ctx.beginPath();
+            ctx.arc(x0, y0, r0, 0, 2 * Math.PI, false);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        };
+
+        /**
+         * 3次ベジェ曲線を描画する。
+         * @param {CanvasRenderingContext2D} ctx - 描画に使用するCanvas 2Dコンテキスト。
+         * @param {number} x0 始点のx座標
+         * @param {number} y0 始点のy座標
+         * @param {number} cp1x 制御点1のx座標
+         * @param {number} cp1y 制御点1のy座標
+         * @param {number} cp2x 制御点2のx座標
+         * @param {number} cp2y 制御点2のy座標
+         * @param {number} x3 終点のx座標
+         * @param {number} y3 終点のy座標
+         * @param {string} [color=ctx.strokeStyle] 色
+         * @returns {Array<{x: number, y: number}>} 線分に分解された点の配列
+         */
+        const drawBezier = (ctx, x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, color = ctx.strokeStyle) => {
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x3, y3);
+            ctx.strokeStyle = color;
+            ctx.stroke();
+        };
+
+        /**
+         * 3次ベジェ曲線を線分に分解した座標の配列を取得します。
+         * @param {number} x0 始点のx座標
+         * @param {number} y0 始点のy座標
+         * @param {number} cp1x 制御点1のx座標
+         * @param {number} cp1y 制御点1のy座標
+         * @param {number} cp2x 制御点2のx座標
+         * @param {number} cp2y 制御点2のy座標
+         * @param {number} x3 終点のx座標
+         * @param {number} y3 終点のy座標
+         * @param {number} [segments=32] 分割数（線分の数）
+         * @returns {Array<{x: number, y: number}>} 線分に分解された点の配列
+         */
+        const getBezierSegments = (x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, segments = 32) => {
+            // 分割数が1未満の場合はエラーを防ぐために最低1に設定
+            if (segments < 1) segments = 1;
+
+            let points = [];
+
+            // tは0から1まで変化するパラメータ
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+
+                // 3次ベジェ曲線のパラメトリック方程式
+                // B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
+
+                const oneMinusT = 1 - t;
+                const oneMinusTSquared = oneMinusT * oneMinusT;
+                const oneMinusTCubed = oneMinusTSquared * oneMinusT;
+                const tSquared = t * t;
+                const tCubed = tSquared * t;
+
+                // 各項の係数
+                const factor0 = oneMinusTCubed;
+                const factor1 = 3 * oneMinusTSquared * t;
+                const factor2 = 3 * oneMinusT * tSquared;
+                const factor3 = tCubed;
+
+                // x座標の計算
+                const x = factor0 * x0 + factor1 * cp1x + factor2 * cp2x + factor3 * x3;
+                // y座標の計算
+                const y = factor0 * y0 + factor1 * cp1y + factor2 * cp2y + factor3 * y3;
+
+                points.push({ x: x, y: y });
+            }
+
+            return points;
+        };
+
+        /**
+         * 3次ベジェ曲線にグラデーション付きで描画します。
+         */
+        const drawBezierWithGradation = (ctx, x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, centerColor = ctx.strokeStyle, edgeColor = 'rgba(0, 0, 0, 0%)', segs = 128) => {
+            const segments = getBezierSegments(x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, segs);
+            if (segments.length == 0) return;
+            for (let i = 0; i < segments.length - 1; ++i) {
+                let seg0 = segments[i];
+                let seg1 = segments[i + 1];
+                drawLineWithGradation(ctx, seg0.x, seg0.y, seg1.x, seg1.y, centerColor, edgeColor);
+            }
+        };
+
+        // コマンド群に従って描画する。
+        const renderCommands = (ctx, commands, is_gradient, centerColor, edgeColor) => {
+            for (let cmd of commands) {
+                let name = cmd[0];
+                switch (name) {
+                case 'line':
+                    if (is_gradient) {
+                        drawLineWithGradation(ctx, cmd[1], cmd[2], cmd[3], cmd[4], centerColor, edgeColor);
+                        if (ctx.lineCap == "round") {
+                            drawCircleWithGradation(ctx, cmd[1], cmd[2], ctx.lineWidth / 2, centerColor, edgeColor);
+                            drawCircleWithGradation(ctx, cmd[3], cmd[4], ctx.lineWidth / 2, centerColor, edgeColor);
+                        }
+                    } else {
+                        drawLine(ctx, cmd[1], cmd[2], cmd[3], cmd[4], centerColor);
+                    }
+                    break;
+                case 'bezier':
+                    if (is_gradient) {
+                        drawBezierWithGradation(ctx, cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6], cmd[7], cmd[8], centerColor, edgeColor);
+                        if (ctx.lineCap == "round") {
+                            drawCircleWithGradation(ctx, cmd[1], cmd[2], ctx.lineWidth / 2, centerColor, edgeColor);
+                            drawCircleWithGradation(ctx, cmd[7], cmd[8], ctx.lineWidth / 2, centerColor, edgeColor);
+                        }
+                    } else {
+                        drawBezier(ctx, cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6], cmd[7], cmd[8], centerColor);
+                    }
+                    break;
+                }
+            }
+        };
+
+        // 描画する関数
+        const render = () => {
+            // キャンバスのサイズ
+            let width = canvas.width, height = canvas.height;
+            // 経過時間を計算
+            let new_time = (new Date()).getTime();
+            let diff_time = (new_time - time) / 1000.0; // 秒単位
+            time = new_time; // 時刻を更新
+
+            // 黒で塗りつぶす
+            ctx.clearRect(0, 0, width, height);
+
+            // 適当にベジエ曲線の頂点と制御点を決める
+            let x0 = width / 5, y0 = height / 3;
+            let cp1x = width / 2;
+            let cp1y = height / 10;
+            let cp2x = width / 3;
+            let cp2y = height * 8 / 10;
+            let x = width * 4 / 5;
+            let y = height * 2 / 3;
+
+            console.assert(radios.length == 2);
+            const is_gradient = radios[1].checked;
+
+            let color0 = 'rgb(0, 192, 0)';
+            let color1 = 'rgba(0, 192, 0, 0)';
+
+            ctx.strokeStyle = color0;
+            ctx.lineWidth = 10;
+            //ctx.lineCap = "round";
+            if (is_gradient)
+                ctx.lineWidth *= 2; // グラデーションを付けると細く見えるので補正する。
+
+            // コマンド群に従って描画する
+            const commands = [
+                ['bezier', x0, y0, cp1x, cp1y, cp2x, cp2y, x, y],
+                ['line', cp1x, cp1y, cp2x, cp2y],
+            ];
+            renderCommands(ctx, commands, is_gradient, color0, color1);
+
+            // 次のアニメーションフレームを要求する
+            if (anime)
+                anime = window.requestAnimationFrame(render);
+        };
+
+        // アニメーションを開始する
+        anime = window.requestAnimationFrame(render);
+    </script>
+</body>
+</html>

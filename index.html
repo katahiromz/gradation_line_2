@@ -324,8 +324,6 @@
             let x = width * 4 / 5;
             let y = height * 2 / 3;
 
-            console.assert(radios.length == 2);
-
             let color0 = 'rgb(0, 192, 0)';
             let color1 = 'rgba(0, 192, 0, 0)';
 
@@ -333,6 +331,7 @@
             ctx.lineWidth = 10;
             //ctx.lineCap = "round"; // 丸みが必要なとき
 
+            console.assert(radios.length == 2);
             const is_gradient = radios[1].checked;
             if (is_gradient) // グラデーションを付けるか？
                 ctx.lineWidth *= 2; // グラデーションを付けると細く見えるので補正する。

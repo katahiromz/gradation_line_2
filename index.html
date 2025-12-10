@@ -53,9 +53,9 @@
          * @param {number} x1 - 終点 (P1) のX座標。
          * @param {number} y1 - 終点 (P1) のY座標。
          * @param {string} [centerColor=ctx.strokeStyle] - 線の中心に適用する色。指定がない場合は現在の strokeStyle を使用。
-         * @param {string} [edgeColor='rgba(0, 0, 0, 0%)'] - 線の両端（エッジ）に適用する色（通常は透明）。
+         * @param {string} [edgeColor='transparent'] - 線の両端（エッジ）に適用する色（通常は透明）。
          */
-        const drawLineWithGradation = (ctx, x0, y0, x1, y1, centerColor = ctx.strokeStyle, edgeColor = 'rgba(0, 0, 0, 0%)') => {
+        const drawLineWithGradation = (ctx, x0, y0, x1, y1, centerColor = ctx.strokeStyle, edgeColor = 'transparent') => {
             const halfWidth = ctx.lineWidth / 2; // 半分の幅
             // 1. 方向ベクトルの計算
             const dx = x1 - x0, dy = y1 - y0;
@@ -103,7 +103,21 @@
             ctx.fill();
         };
 
-        // 円を描画する。
+        /**
+         * 指定した中心と半径で塗りつぶしの円を描画します。
+         *
+         * @param {CanvasRenderingContext2D} ctx - 描画先の 2D コンテキスト
+         * @param {number} x0 - 円の中心の x 座標
+         * @param {number} y0 - 円の中心の y 座標
+         * @param {number} r0 - 円の半径（非負の数）
+         * @param {string|CanvasGradient|CanvasPattern} [color=ctx.strokeStyle] - 塗りつぶしの色またはパターン。
+         *        デフォルトでは ctx.strokeStyle が使用されます（呼び出し時に評価されます）。
+         *
+         * 注意:
+         * - この関数は塗りつぶし(fill)を行います。枠線を描きたい場合は ctx.stroke() を追加するか、
+         *   別途 stroke 用のオプションを受け取るように拡張してください。
+         * - r0 が 0 以下の場合は見えない（描画されない）ため、必要なら事前にチェックしてください。
+         */
         const drawCircle = (ctx, x0, y0, r0, color = ctx.strokeStyle) => {
             ctx.beginPath();
             ctx.arc(x0, y0, r0, 0, 2 * Math.PI, false);
@@ -111,8 +125,22 @@
             ctx.fill();
         };
 
-        // グラデーション付きで円を描画する。
-        const drawCircleWithGradation = (ctx, x0, y0, r0, centerColor = ctx.strokeStyle, edgeColor = 'rgba(0, 0, 0, 0%)') => {
+        /**
+         * 指定した中心と半径で、中心→縁にかけて放射状のグラデーションで塗りつぶした円を描画します。
+         *
+         * @param {CanvasRenderingContext2D} ctx - 描画先の 2D コンテキスト
+         * @param {number} x0 - 円の中心の x 座標
+         * @param {number} y0 - 円の中心の y 座標
+         * @param {number} r0 - 円の半径（非負の数）
+         * @param {string|CanvasGradient|CanvasPattern} [centerColor=ctx.strokeStyle] - 円の中心付近の色（デフォルトは ctx.strokeStyle）
+         * @param {string|CanvasGradient|CanvasPattern} [edgeColor='transparent'] - 円の外縁の色（デフォルトは透明）
+         *
+         * 動作概要:
+         * - createRadialGradient を使用し、中心（半径 0）から外縁（半径 r0）への放射状グラデーションを生成します。
+         * - 中心色は 0 〜 0.2 の範囲で固定し、0.2 から 1.0 にかけて外縁色にフェードさせています。
+         * - パラメータ centerColor / edgeColor には CSS の色文字列、CanvasGradient、CanvasPattern 等を渡せます。
+         */
+        const drawCircleWithGradation = (ctx, x0, y0, r0, centerColor = ctx.strokeStyle, edgeColor = 'transparent') => {
             let gradient = ctx.createRadialGradient(x0, y0, 0, x0, y0, r0);
             // 中心 (0%～20%)
             gradient.addColorStop(0, centerColor);
@@ -198,9 +226,31 @@
         };
 
         /**
-         * 3次ベジェ曲線にグラデーション付きで描画します。
+         * 3次ベジェ曲線に沿ってグラデーション付きで描画します。
+         *
+         * この関数はベジェ曲線を指定した分割数でサンプルして、隣接するサンプル点同士を線分として取り、
+         * 各線分を drawLineWithGradation で塗りつぶすことで曲線全体にグラデーションを適用します。
+         *
+         * @param {CanvasRenderingContext2D} ctx - 描画先の 2D コンテキスト
+         * @param {number} x0 - ベジェの始点 x 座標
+         * @param {number} y0 - ベジェの始点 y 座標
+         * @param {number} cp1x - 第1制御点 x 座標
+         * @param {number} cp1y - 第1制御点 y 座標
+         * @param {number} cp2x - 第2制御点 x 座標
+         * @param {number} cp2y - 第2制御点 y 座標
+         * @param {number} x3 - ベジェの終点 x 座標
+         * @param {number} y3 - ベジェの終点 y 座標
+         * @param {string|CanvasGradient|CanvasPattern} [centerColor=ctx.strokeStyle] - 線分中心側の色（drawLineWithGradation に渡されます）
+         * @param {string|CanvasGradient|CanvasPattern} [edgeColor='transparent'] - 線分端側の色（drawLineWithGradation に渡されます）
+         * @param {number} [segs=128] - ベジェ曲線を分割するサンプル数（多いほど滑らかになるが処理は重くなる）
+         *
+         * 補足:
+         * - getBezierSegments は segs+1 個の点（t=0..1 を segs 分割）を返す想定です。
+         * - segments.length が 0 の場合は何も描画しません（安全な早期リターン）。
+         * - drawLineWithGradation の具体的な実装次第で見た目やパフォーマンスが変わります。必要であれば線分ごとの
+         *   グラデーション位置やブレンド方法を調整してください。
          */
-        const drawBezierWithGradation = (ctx, x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, centerColor = ctx.strokeStyle, edgeColor = 'rgba(0, 0, 0, 0%)', segs = 128) => {
+        const drawBezierWithGradation = (ctx, x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, centerColor = ctx.strokeStyle, edgeColor = 'transparent', segs = 128) => {
             const segments = getBezierSegments(x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3, segs);
             if (segments.length == 0) return;
             for (let i = 0; i < segments.length - 1; ++i) {
@@ -210,7 +260,19 @@
             }
         };
 
-        // コマンド群に従って描画する。
+        /**
+         * コマンド配列を走査して描画を実行します。
+         *
+         * commands の各要素は配列（タプル）で、先頭要素がコマンド名の文字列 ('line' | 'bezier') です。
+         * - 'line' コマンドフォーマット: ['line', x0, y0, x1, y1]
+         * - 'bezier' コマンドフォーマット: ['bezier', x0, y0, cp1x, cp1y, cp2x, cp2y, x3, y3]
+         *
+         * @param {CanvasRenderingContext2D} ctx - 描画先の 2D コンテキスト
+         * @param {Array} commands - 描画コマンドの配列（上記フォーマット）
+         * @param {boolean} is_gradient - true の場合はグラデーション版の描画関数を使う
+         * @param {string|CanvasGradient|CanvasPattern} centerColor - グラデーションの中心色または通常描画時の色
+         * @param {string|CanvasGradient|CanvasPattern} edgeColor - グラデーションの端色（グラデーション時のみ使用）
+         */
         const renderCommands = (ctx, commands, is_gradient, centerColor, edgeColor) => {
             for (let cmd of commands) {
                 let name = cmd[0];
@@ -270,7 +332,7 @@
 
             ctx.strokeStyle = color0;
             ctx.lineWidth = 10;
-            //ctx.lineCap = "round";
+            //ctx.lineCap = "round"; // 丸みが必要なとき
             if (is_gradient)
                 ctx.lineWidth *= 2; // グラデーションを付けると細く見えるので補正する。
 
